@@ -11,6 +11,8 @@ public class RotateOnDirectionalTrigger : MonoBehaviour
     private bool isPlayerInTrigger = false; // Flag to check if player is inside the trigger
     private Vector3 rotationDirection = Vector3.zero; // Rotation direction
 
+    bool shoot = false;
+
     // Update is called once per frame
     void Update()
     {
@@ -53,6 +55,10 @@ public class RotateOnDirectionalTrigger : MonoBehaviour
             {
                 rotationDirection = Vector3.up; // Rotate to the right
             }
+            else if (gameObject.name == "Fire")
+            {
+                shoot = true;
+            }
         }
     }
     private void OnTriggerExit(Collider other)
@@ -62,6 +68,7 @@ public class RotateOnDirectionalTrigger : MonoBehaviour
         {
             isPlayerInTrigger = false;
             rotationDirection = Vector3.zero; // Stop rotation when the player exits
+            shoot = false;
         }
     }
 }

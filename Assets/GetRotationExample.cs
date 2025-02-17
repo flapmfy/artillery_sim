@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using static UnityEngine.GridBrushBase;
 
 public class GetRotationExample : MonoBehaviour
 {
@@ -11,6 +12,8 @@ public class GetRotationExample : MonoBehaviour
     bool xCorrect = false;
     bool yCorrect = false;
 
+    private RotateOnDirectionalTrigger Triggers;
+
     void Start()
     {
         // Target Values
@@ -19,6 +22,8 @@ public class GetRotationExample : MonoBehaviour
     }
     void Update()
     {
+        
+
         // Get the rotation in Euler angles (degrees)
         Vector3 eulerRotation = transform.rotation.eulerAngles;
 
