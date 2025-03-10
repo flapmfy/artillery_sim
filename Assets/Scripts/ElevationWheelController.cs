@@ -5,13 +5,13 @@ using UnityEngine.XR.Interaction.Toolkit;
 public class ElevationWheelController : MonoBehaviour
 {
     [Header("Settings")]
-    public Transform barrelPivot;
+    public Transform barrelPivot; // This is your barrel with the pivot already set in Blender
     public Vector2 elevationRange = new Vector2(0, 45);
-    public float elevationSpeed = 1.0f;
+    public float rotationSensitivity = 1.0f;
 
     private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable grabInteractable;
     private Transform interactor;
-    private Vector3 previousPosition;
+    private Quaternion lastInteractorRotation;
     private float currentElevation;
 
     void Awake()
@@ -19,13 +19,21 @@ public class ElevationWheelController : MonoBehaviour
         grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
         grabInteractable.selectEntered.AddListener(OnGrab);
         grabInteractable.selectExited.AddListener(OnRelease);
+        
+        // Get the initial elevation angle
         currentElevation = barrelPivot.localEulerAngles.x;
+        
+        // Make sure elevation is within range
+        if (currentElevation > 180)
+            currentElevation -= 360; // Handle negative angles properly
+        
+        currentElevation = Mathf.Clamp(currentElevation, elevationRange.x, elevationRange.y);
     }
 
     void OnGrab(SelectEnterEventArgs args)
     {
         interactor = args.interactorObject.transform;
-        previousPosition = interactor.position;
+        lastInteractorRotation = interactor.rotation;
     }
 
     void OnRelease(SelectExitEventArgs args)
@@ -35,25 +43,34 @@ public class ElevationWheelController : MonoBehaviour
 
     void Update()
     {
-        if (!interactor) return;
+        if (interactor == null) return;
 
-        Vector3 currentPosition = interactor.position;
-        Vector3 direction = currentPosition - transform.position;
-        Vector3 prevDirection = previousPosition - transform.position;
-
-        float angleDelta = Vector3.SignedAngle(
-            prevDirection, 
-            direction, 
-            transform.right
-        );
-
+        // Calculate the rotation change
+        Quaternion currentRotation = interactor.rotation;
+        float rotationDelta = CalculateRotationChange(lastInteractorRotation, currentRotation);
+        
+        // Apply to elevation
         currentElevation = Mathf.Clamp(
-            currentElevation + angleDelta * elevationSpeed,
+            currentElevation + rotationDelta * rotationSensitivity,
             elevationRange.x,
             elevationRange.y
         );
 
+        // Apply to barrel
         barrelPivot.localRotation = Quaternion.Euler(currentElevation, 0, 0);
-        previousPosition = currentPosition;
+        
+        // Store rotation for next frame
+        lastInteractorRotation = currentRotation;
+    }
+    
+    private float CalculateRotationChange(Quaternion from, Quaternion to)
+    {
+        // We'll calculate rotation primarily around the x-axis of the wheel
+        // This assumes the wheel rotates around its local x-axis
+        Vector3 fromVector = from * Vector3.up;
+        Vector3 toVector = to * Vector3.up;
+        
+        // Use the wheel's right axis as the rotation reference
+        return Vector3.SignedAngle(fromVector, toVector, transform.right);
     }
 }

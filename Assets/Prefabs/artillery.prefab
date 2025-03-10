@@ -26,7 +26,7 @@ Transform:
   m_GameObject: {fileID: 523454116248986161}
   serializedVersion: 2
   m_LocalRotation: {x: 1, y: -0, z: -0, w: -0.00000008940697}
-  m_LocalPosition: {x: -0.014157993, y: -0.0104311, z: -0.015696641}
+  m_LocalPosition: {x: -0.014157993, y: -0.0117, z: -0.0157}
   m_LocalScale: {x: 0.03686204, y: 0.03686205, z: 0.03686205}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -401,10 +401,10 @@ GameObject:
   - component: {fileID: 7036117911086727328}
   - component: {fileID: 8391917168321978739}
   - component: {fileID: 6947873850674741258}
-  - component: {fileID: 3877879172422869118}
   - component: {fileID: 6765902153859117156}
   - component: {fileID: 4044770220970825841}
   - component: {fileID: 6346743426888962120}
+  - component: {fileID: 2231890660020648536}
   m_Layer: 3
   m_Name: wheel_canon
   m_TagString: Untagged
@@ -478,28 +478,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &3877879172422869118
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2536730179780063196}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -3974580703557797610, guid: 9a0385f7be5341f4bbff65e634d58283, type: 3}
 --- !u!54 &6765902153859117156
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -607,12 +585,12 @@ MonoBehaviour:
   m_SnapToColliderVolume: 1
   m_ReinitializeDynamicAttachEverySingleGrab: 1
   m_AttachEaseInTime: 0.15
-  m_MovementType: 2
+  m_MovementType: 1
   m_VelocityDamping: 1
   m_VelocityScale: 1
   m_AngularVelocityDamping: 1
   m_AngularVelocityScale: 1
-  m_TrackPosition: 1
+  m_TrackPosition: 0
   m_SmoothPosition: 0
   m_SmoothPositionAmount: 8
   m_TightenPosition: 0.1
@@ -663,7 +641,28 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   barrelPivot: {fileID: 876420434046351455}
   elevationRange: {x: 0, y: 45}
-  elevationSpeed: 0.5
+  rotationSensitivity: 1
+--- !u!65 &2231890660020648536
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2536730179780063196}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.00075029844, y: 0.0109749995, z: 0.010974906}
+  m_Center: {x: -0.00000001967419, y: 0.000000055646513, z: -0.00000006030312}
 --- !u!1 &4075131635020413393
 GameObject:
   m_ObjectHideFlags: 0
@@ -781,10 +780,10 @@ GameObject:
   - component: {fileID: 3996008848678025329}
   - component: {fileID: 3836196408987944538}
   - component: {fileID: 8710558003765290700}
-  - component: {fileID: 9075226584125257345}
   - component: {fileID: 7272225979838146247}
   - component: {fileID: 3917087243227860365}
   - component: {fileID: 3235485726370553778}
+  - component: {fileID: 6823176072661734079}
   m_Layer: 3
   m_Name: wheel_rotation
   m_TagString: Untagged
@@ -858,28 +857,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &9075226584125257345
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4876922614377396886}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -6276198799779487297, guid: 9a0385f7be5341f4bbff65e634d58283, type: 3}
 --- !u!54 &7272225979838146247
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -987,12 +964,12 @@ MonoBehaviour:
   m_SnapToColliderVolume: 1
   m_ReinitializeDynamicAttachEverySingleGrab: 1
   m_AttachEaseInTime: 0.15
-  m_MovementType: 2
+  m_MovementType: 1
   m_VelocityDamping: 1
   m_VelocityScale: 1
   m_AngularVelocityDamping: 1
   m_AngularVelocityScale: 1
-  m_TrackPosition: 1
+  m_TrackPosition: 0
   m_SmoothPosition: 0
   m_SmoothPositionAmount: 8
   m_TightenPosition: 0.1
@@ -1042,7 +1019,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   artilleryBase: {fileID: 4592110992752111797}
-  rotationSpeed: 1
+  rotationSensitivity: 1
+  useRotationLimits: 0
+  rotationLimits: {x: -180, y: 180}
+--- !u!65 &6823176072661734079
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4876922614377396886}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.00075039855, y: 0.0109749995, z: 0.010974906}
+  m_Center: {x: -0.000000014901161, y: 0.000000046333287, z: 0.000000048195933}
 --- !u!1 &5639135469301129558
 GameObject:
   m_ObjectHideFlags: 0
