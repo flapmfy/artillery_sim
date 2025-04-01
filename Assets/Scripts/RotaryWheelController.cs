@@ -1,86 +1,180 @@
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit; // Namespace updated
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
-[RequireComponent(typeof(UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable))]
-public class RotaryWheelController : MonoBehaviour
+[RequireComponent(typeof(XRGrabInteractable))]
+public class RotationWheelController : MonoBehaviour // Renamed class
 {
-    [Header("Settings")]
-    public Transform artilleryBase;
-    public float rotationSensitivity = 1.0f;
-    
-    // Optional: Add rotation limits
-    public bool useRotationLimits = false;
-    public Vector2 rotationLimits = new Vector2(-180f, 180f);
+    [Header("Target Object")]
+    [Tooltip("The Transform to rotate horizontally (e.g., the artillery base)")]
+    public Transform artilleryBase; // Renamed variable
 
-    private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable grabInteractable;
-    private Transform interactor;
-    private Quaternion lastInteractorRotation;
-    private float currentRotation;
+    [Header("Rotation Settings")]
+    [Tooltip("The local axis around which this wheel visually rotates (e.g., Vector3.forward for Z)")]
+    public Vector3 localRotationAxis = Vector3.forward; // Axis the *wheel* spins on
+    [Tooltip("How many degrees the base rotates per degree the wheel is turned")]
+    public float sensitivity = 0.5f; // Adjust this for feel
+    [Tooltip("Enable limits for the base rotation?")]
+    public bool useRotationLimits = false;
+    [Tooltip("Min/Max rotation angle for the artilleryBase (degrees) around Y-axis")]
+    public Vector2 rotationLimits = new Vector2(-90, 90); // Example limits
+
+    [Header("Visual Feedback (Optional)")]
+    [Tooltip("If assigned, this wheel transform will visually rotate")]
+    public Transform wheelVisualTransform; // Assign the wheel mesh transform here
+
+    private XRGrabInteractable grabInteractable;
+    private IXRSelectInteractor currentInteractor = null;
+    private Vector3 initialGrabPositionLocal = Vector3.zero;
+    private float currentRotationAngle = 0f; // Tracks the base's target Y rotation
+    private float currentWheelVisualAngle = 0f; // For visual rotation
 
     void Awake()
     {
-        grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
-        grabInteractable.selectEntered.AddListener(OnGrab);
-        grabInteractable.selectExited.AddListener(OnRelease);
-        
-        // Initialize current rotation
-        currentRotation = artilleryBase.localEulerAngles.y;
-        if (currentRotation > 180f)
-            currentRotation -= 360f;
+        grabInteractable = GetComponent<XRGrabInteractable>();
+
+        if (artilleryBase == null)
+        {
+            Debug.LogError("RotationWheelController: Artillery Base is not assigned!", this);
+            enabled = false;
+            return;
+        }
+
+        // Use the base's initial Y rotation as the starting angle
+        currentRotationAngle = GetInitialRotation();
+
+        // Apply initial rotation immediately
+        ApplyRotation();
+
+        if (wheelVisualTransform == null)
+        {
+            wheelVisualTransform = transform;
+        }
+        // Initialize visual rotation (optional)
+        // currentWheelVisualAngle = currentRotationAngle / sensitivity;
+        // ApplyWheelVisualRotation();
     }
 
-    void OnGrab(SelectEnterEventArgs args)
+    void OnEnable()
     {
-        interactor = args.interactorObject.transform;
-        lastInteractorRotation = interactor.rotation;
+        grabInteractable.selectEntered.AddListener(OnGrabStart);
+        grabInteractable.selectExited.AddListener(OnGrabEnd);
     }
 
-    void OnRelease(SelectExitEventArgs args)
+    void OnDisable()
     {
-        interactor = null;
+        grabInteractable.selectEntered.RemoveListener(OnGrabStart);
+        grabInteractable.selectExited.RemoveListener(OnGrabEnd);
+    }
+
+    private float GetInitialRotation()
+    {
+        // Assuming rotation is primarily around the Y axis of the artilleryBase
+        float initialAngle = artilleryBase.localEulerAngles.y;
+
+        // Convert angle range to -180 to 180 if necessary, especially if using limits
+        if (initialAngle > 180f)
+        {
+            initialAngle -= 360f;
+        }
+
+        // If using limits, clamp the initial angle immediately
+        if (useRotationLimits)
+        {
+             initialAngle = Mathf.Clamp(initialAngle, rotationLimits.x, rotationLimits.y);
+        }
+        // If not using limits, the raw angle (potentially >180 or <-180 after wrapping) is fine
+
+        return initialAngle;
+    }
+
+
+    private void OnGrabStart(SelectEnterEventArgs args)
+    {
+        if (args.interactorObject is IXRSelectInteractor interactor)
+        {
+            currentInteractor = interactor;
+            initialGrabPositionLocal = CalculateLocalProjectedPosition(currentInteractor.GetAttachTransform(grabInteractable).position);
+        }
+    }
+
+    private void OnGrabEnd(SelectExitEventArgs args)
+    {
+        if (args.interactorObject == currentInteractor)
+        {
+            currentInteractor = null;
+        }
     }
 
     void Update()
     {
-        if (interactor == null) return;
+        if (currentInteractor != null)
+        {
+            Vector3 currentGrabPositionLocal = CalculateLocalProjectedPosition(currentInteractor.GetAttachTransform(grabInteractable).position);
 
-        // Calculate rotation change
-        Quaternion currentRotation = interactor.rotation;
-        float rotationDelta = CalculateRotationChange(lastInteractorRotation, currentRotation);
-        
-        // Apply rotation to the artillery base
-        if (useRotationLimits)
-        {
-            // Keep track of total rotation and apply limits
-            this.currentRotation += rotationDelta * rotationSensitivity;
-            this.currentRotation = Mathf.Clamp(this.currentRotation, rotationLimits.x, rotationLimits.y);
-            artilleryBase.localRotation = Quaternion.Euler(0, this.currentRotation, 0);
+            float angleDelta = Vector3.SignedAngle(
+                initialGrabPositionLocal,
+                currentGrabPositionLocal,
+                localRotationAxis // Use the wheel's rotation axis
+            );
+
+            if (Mathf.Abs(angleDelta) > 0.01f)
+            {
+                // --- Update Base Rotation Angle ---
+                float rotationChange = angleDelta * sensitivity;
+                currentRotationAngle += rotationChange; // Accumulate rotation
+
+                // Apply limits ONLY if enabled
+                if (useRotationLimits)
+                {
+                    currentRotationAngle = Mathf.Clamp(
+                        currentRotationAngle,
+                        rotationLimits.x,
+                        rotationLimits.y
+                    );
+                }
+                // If no limits, currentRotationAngle can increase/decrease indefinitely
+
+                ApplyRotation(); // Apply the calculated angle to the base
+
+                // --- Update Wheel Visual ---
+                currentWheelVisualAngle += angleDelta; // Accumulate visual rotation
+                ApplyWheelVisualRotation();
+
+                // Update reference position for continuous rotation
+                initialGrabPositionLocal = currentGrabPositionLocal;
+            }
         }
-        else
-        {
-            // Just rotate directly - no limits
-            artilleryBase.Rotate(Vector3.up, rotationDelta * rotationSensitivity);
-        }
-        
-        // Store current rotation for next frame
-        lastInteractorRotation = currentRotation;
     }
-    
-    private float CalculateRotationChange(Quaternion from, Quaternion to)
+
+    // Calculates the interactor's position relative to the wheel's center,
+    // projected onto the plane perpendicular to the localRotationAxis.
+    private Vector3 CalculateLocalProjectedPosition(Vector3 interactorWorldPosition)
     {
-        // Calculate rotation around the wheel's up axis
-        // This is appropriate for a horizontal wheel that rotates the artillery base
-        Vector3 fromDirection = from * Vector3.forward;
-        Vector3 toDirection = to * Vector3.forward;
-        
-        // Remove any vertical component to focus on horizontal rotation
-        fromDirection.y = 0;
-        toDirection.y = 0;
-        
-        fromDirection.Normalize();
-        toDirection.Normalize();
-        
-        // Calculate the angle between the two directions
-        return Vector3.SignedAngle(fromDirection, toDirection, Vector3.up);
+        Vector3 worldOffset = interactorWorldPosition - transform.position;
+        Vector3 localOffset = transform.InverseTransformDirection(worldOffset);
+        Vector3 projectedLocalOffset = Vector3.ProjectOnPlane(localOffset, localRotationAxis);
+        return projectedLocalOffset;
+    }
+
+    // Applies the currentRotationAngle to the artilleryBase's Y-axis
+    private void ApplyRotation()
+    {
+        if (artilleryBase != null)
+        {
+            // Get current rotation, only change Y
+            Vector3 currentLocalEuler = artilleryBase.localEulerAngles;
+            artilleryBase.localRotation = Quaternion.Euler(currentLocalEuler.x, currentRotationAngle, currentLocalEuler.z);
+        }
+    }
+
+    // Applies the currentWheelVisualAngle to the wheel visual
+    private void ApplyWheelVisualRotation()
+    {
+         if (wheelVisualTransform != null)
+         {
+            wheelVisualTransform.localRotation = Quaternion.AngleAxis(currentWheelVisualAngle, localRotationAxis);
+         }
     }
 }

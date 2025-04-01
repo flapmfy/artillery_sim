@@ -1,103 +1,177 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors; // Added for clarity
+using System.Collections; // Added for Coroutine
 
+[RequireComponent(typeof(XRGrabInteractable))]
 public class ChamberBlockController : MonoBehaviour
 {
     [Header("Movement Constraints")]
-    [Tooltip("Minimum X position (closed position)")]
-    public float minXPosition = 0.014f;
-    
-    [Tooltip("Maximum X position (open position)")]
-    public float maxXPosition = 0.02f;
-    
-    [Header("Physics Settings")]
-    [Tooltip("Movement smoothing factor")]
-    public float smoothing = 10f;
-    
-    [Tooltip("Return to closed position when released")]
+    [Tooltip("The local axis along which the block slides (relative to its parent)")]
+    public Vector3 slideAxis = Vector3.right; // Usually (1,0,0) for local X
+    [Tooltip("Minimum distance along the slideAxis from the start position (e.g., 0 for closed)")]
+    public float minSlideDistance = 0f;
+    [Tooltip("Maximum distance along the slideAxis from the start position (e.g., 0.05 for open)")]
+    public float maxSlideDistance = 0.02f; // Adjust based on your model
+
+    [Header("Return Behaviour")]
+    [Tooltip("Return to closed position (minSlideDistance) when released")]
     public bool returnToClosedWhenReleased = true;
-    
-    // Components
-    private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable grabInteractable;
-    private Vector3 originalLocalPosition;
-    private bool isGrabbed = false;
-    private Transform originalParent;
-    
+    [Tooltip("Time taken to smoothly return to closed position")]
+    public float returnDuration = 0.4f;
+
+    // Components & State
+    private XRGrabInteractable grabInteractable;
+    private Rigidbody rb; // Optional Rigidbody reference
+    private Vector3 initialLocalPosition; // Store the starting point relative to parent
+    private IXRSelectInteractor currentInteractor = null; // Store the specific interactor
+    // Offset from block origin to hand attach point in the block's local space
+    private Vector3 grabAttachOffsetLocal;
+
     void Awake()
     {
-        // Get the XR Grab Interactable component
-        grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
-        
-        // Store the original position
-        originalLocalPosition = transform.localPosition;
-        originalParent = transform.parent;
-        
-        // Configure the interactable
-        if (grabInteractable != null)
+        grabInteractable = GetComponent<XRGrabInteractable>();
+        rb = GetComponent<Rigidbody>(); // Get Rigidbody if present
+        initialLocalPosition = transform.localPosition; // Store starting position
+
+        // Normalize the slide axis just in case it wasn't entered as a unit vector
+        slideAxis.Normalize();
+
+        // --- Configure Interactable ---
+        // Instantaneous or Kinematic are best suited when manually controlling/constraining position.
+        // Let's stick with Instantaneous as you had it, but Kinematic is also a good choice.
+        grabInteractable.movementType = XRBaseInteractable.MovementType.Instantaneous;
+
+        // IMPORTANT: If using Instantaneous or Kinematic, the Rigidbody (if present)
+        // MUST be marked IsKinematic to avoid conflicts with physics.
+        if (rb != null)
         {
-            // Use a custom movement type that only allows movement along X axis
-            grabInteractable.movementType = UnityEngine.XR.Interaction.Toolkit.Interactables.XRBaseInteractable.MovementType.VelocityTracking;
-            
-            // Subscribe to interaction events
-            grabInteractable.selectEntered.AddListener(OnGrabbed);
-            grabInteractable.selectExited.AddListener(OnReleased);
+            rb.isKinematic = true;
+            // Consider collision detection mode if needed (e.g., Continuous Speculative)
+        }
+        else
+        {
+            Debug.LogWarning("ChamberBlockController: No Rigidbody found. Movement might behave unexpectedly without one, especially regarding collisions.", this);
         }
     }
-    
-    void OnGrabbed(SelectEnterEventArgs args)
+
+    // Use OnEnable/OnDisable for listeners - more robust
+    void OnEnable()
     {
-        isGrabbed = true;
+        grabInteractable.selectEntered.AddListener(OnGrabStart);
+        grabInteractable.selectExited.AddListener(OnGrabEnd);
     }
-    
-    void OnReleased(SelectExitEventArgs args)
+
+    void OnDisable()
     {
-        isGrabbed = false;
-        
-        // Return to closed position if enabled
-        if (returnToClosedWhenReleased)
+        grabInteractable.selectEntered.RemoveListener(OnGrabStart);
+        grabInteractable.selectExited.RemoveListener(OnGrabEnd);
+        // Ensure coroutine stops if object is disabled while returning
+        StopAllCoroutines();
+    }
+
+    private void OnGrabStart(SelectEnterEventArgs args)
+    {
+        // Check if the interactor is valid
+        if (args.interactorObject is IXRSelectInteractor interactor)
         {
-            // Create a vector with only the Y and Z from the original position
-            Vector3 closedPosition = originalLocalPosition;
-            closedPosition.x = minXPosition;
-            StartCoroutine(SmoothMoveTo(closedPosition));
+            currentInteractor = interactor;
+
+            // Calculate the offset from the object's origin to the grab point,
+            // but store it in the object's local space. This helps maintain
+            // the relative position of the hand on the object while sliding.
+            Transform attachTransform = currentInteractor.GetAttachTransform(grabInteractable);
+            grabAttachOffsetLocal = transform.InverseTransformPoint(attachTransform.position);
+
+            // Stop any return movement if it was in progress
+            StopAllCoroutines();
         }
     }
-    
-    void Update()
+
+    private void OnGrabEnd(SelectExitEventArgs args)
     {
-        if (isGrabbed)
+        // Only process if the releasing interactor is the one currently holding it
+        if (args.interactorObject == currentInteractor)
         {
-            // Constrain movement to X-axis within limits
-            Vector3 currentLocalPos = transform.localPosition;
-            float clampedX = Mathf.Clamp(currentLocalPos.x, minXPosition, maxXPosition);
-            
-            // Only change the X value, keep original Y and Z
-            Vector3 constrainedPosition = new Vector3(
-                clampedX,
-                originalLocalPosition.y,
-                originalLocalPosition.z
-            );
-            
-            transform.localPosition = constrainedPosition;
+            currentInteractor = null; // Clear the interactor reference
+
+            // Start the return coroutine if enabled and the object is active
+            if (returnToClosedWhenReleased && gameObject.activeInHierarchy)
+            {
+                StartCoroutine(SmoothMoveToTargetDistance(minSlideDistance));
+            }
         }
     }
-    
-    System.Collections.IEnumerator SmoothMoveTo(Vector3 targetLocalPosition)
+
+    // Use LateUpdate to apply constraints *after* the XR Interaction Toolkit
+    // has processed its updates for the frame.
+    void LateUpdate()
     {
-        float elapsedTime = 0;
-        Vector3 startingPos = transform.localPosition;
-        
-        while (elapsedTime < 1.0f)
+        if (currentInteractor != null)
         {
-            transform.localPosition = Vector3.Lerp(startingPos, targetLocalPosition, elapsedTime * smoothing);
+            // --- Calculate Constrained Position ---
+
+            // 1. Get the world position where the hand/interactor is trying to move the grab point to.
+            Transform attachTransform = currentInteractor.GetAttachTransform(grabInteractable);
+
+            // 2. Calculate where the object's *origin* should be in world space to satisfy the hand's position,
+            // considering the initial grab offset.
+            Vector3 desiredWorldPosition = attachTransform.position - transform.TransformDirection(grabAttachOffsetLocal);
+
+            // 3. Convert this desired world position into the coordinate system of the object's parent.
+            // If there's no parent, use world space directly.
+            Vector3 desiredLocalPosition = transform.parent != null ?
+                                           transform.parent.InverseTransformPoint(desiredWorldPosition) :
+                                           desiredWorldPosition;
+
+            // 4. Calculate the vector representing the total desired movement from the initial position.
+            Vector3 movementVector = desiredLocalPosition - initialLocalPosition;
+
+            // 5. Project this total movement vector onto the allowed slide axis.
+            // This finds the component of the movement that is along the allowed direction.
+            Vector3 projectedMovement = Vector3.Project(movementVector, slideAxis);
+
+            // 6. Calculate the signed distance along the slide axis. Dot product gives magnitude and sign.
+            float currentDistance = Vector3.Dot(projectedMovement, slideAxis);
+
+            // 7. Clamp this distance within the defined limits.
+            float clampedDistance = Mathf.Clamp(currentDistance, minSlideDistance, maxSlideDistance);
+
+            // 8. Calculate the final constrained local position by starting at the initial position
+            // and adding the allowed movement along the slide axis.
+            Vector3 constrainedLocalPosition = initialLocalPosition + slideAxis * clampedDistance;
+
+            // 9. Apply the constrained position.
+            transform.localPosition = constrainedLocalPosition;
+        }
+    }
+
+    // Coroutine for smooth return movement
+    IEnumerator SmoothMoveToTargetDistance(float targetDistance)
+    {
+        // Calculate the target local position based on the distance
+        Vector3 targetLocalPosition = initialLocalPosition + slideAxis * targetDistance;
+        Vector3 startLocalPosition = transform.localPosition;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < returnDuration)
+        {
+            // Use SmoothStep for a nicer ease-in/ease-out effect
+            float t = elapsedTime / returnDuration;
+            t = t * t * (3f - 2f * t); // Smoothstep formula
+
+            transform.localPosition = Vector3.Lerp(startLocalPosition, targetLocalPosition, t);
+
             elapsedTime += Time.deltaTime;
-            yield return null;
+            yield return null; // Wait for the next frame
         }
-        
+
+        // Ensure the final position is exactly the target
         transform.localPosition = targetLocalPosition;
     }
-    
-    // Optional: Add sound effects
+
+    // --- Keep your optional/utility methods ---
     public void PlaySoundEffect(AudioClip clip)
     {
         if (clip != null)
@@ -105,15 +179,10 @@ public class ChamberBlockController : MonoBehaviour
             AudioSource.PlayClipAtPoint(clip, transform.position);
         }
     }
-    
-    // For testing in editor
-    public void SimulateMove(float normalizedPosition)
+
+    public void SimulateMove(float normalizedPosition) // NormalizedPosition 0=min, 1=max
     {
-        float position = Mathf.Lerp(minXPosition, maxXPosition, normalizedPosition);
-        transform.localPosition = new Vector3(
-            position,
-            originalLocalPosition.y,
-            originalLocalPosition.z
-        );
+        float distance = Mathf.Lerp(minSlideDistance, maxSlideDistance, normalizedPosition);
+        transform.localPosition = initialLocalPosition + slideAxis * distance;
     }
 }
