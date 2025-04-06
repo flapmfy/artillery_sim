@@ -72,6 +72,8 @@ public class BulletLoadTrigger : MonoBehaviour
         }
     }
 
+    
+
     void OnTriggerEnter(Collider other)
     {
         // 1. Check if already loaded
@@ -168,26 +170,27 @@ public class BulletLoadTrigger : MonoBehaviour
     }
 
     // Call this method from elsewhere if you implement unloading
-    public void UnloadBullet()
+    /// <summary>
+    /// Destroys the currently loaded bullet instance and resets the state.
+    /// Called after firing.
+    /// </summary>
+    public void DestroyLoadedBullet() // Renamed for clarity
     {
         if (loadedBulletInstance != null)
         {
-            Debug.Log($"Unloading bullet: {loadedBulletInstance.name}");
+            Debug.Log($"Destroying loaded bullet: {loadedBulletInstance.name}");
 
-            // Re-enable interaction and physics (if desired)
-            XRGrabInteractable bulletInteractable = loadedBulletInstance.GetComponent<XRGrabInteractable>();
-            Rigidbody bulletRigidbody = loadedBulletInstance.GetComponent<Rigidbody>();
-
-            if(bulletInteractable != null) bulletInteractable.enabled = true;
-            if(bulletRigidbody != null) bulletRigidbody.isKinematic = false; // Or configure as needed
-
-            // Unparent
-            loadedBulletInstance.transform.SetParent(null); // Release from parent
+            // --- Destroy the GameObject ---
+            Destroy(loadedBulletInstance); // This removes it from the scene
 
             // Clear reference
             loadedBulletInstance = null;
 
-             // Optional: Play unload sound
+            // Optional: Play an "eject" or "spent" sound here if desired
+        }
+        else
+        {
+             Debug.LogWarning("DestroyLoadedBullet called, but no bullet was loaded.");
         }
     }
 

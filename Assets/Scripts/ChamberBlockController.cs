@@ -31,6 +31,7 @@ public class ChamberBlockController : MonoBehaviour
 
     void Awake()
     {
+        Debug.Log($"[{Time.frameCount}] ChamberBlockController Awake() called for {gameObject.name}.", this);
         grabInteractable = GetComponent<XRGrabInteractable>();
         rb = GetComponent<Rigidbody>(); // Get Rigidbody if present
         initialLocalPosition = transform.localPosition; // Store starting position
@@ -59,16 +60,40 @@ public class ChamberBlockController : MonoBehaviour
     // Use OnEnable/OnDisable for listeners - more robust
     void OnEnable()
     {
-        grabInteractable.selectEntered.AddListener(OnGrabStart);
-        grabInteractable.selectExited.AddListener(OnGrabEnd);
+        // Add this log at the beginning of OnEnable
+        Debug.Log($"[{Time.frameCount}] ChamberBlockController OnEnable() called for {gameObject.name}.", this);
+
+        // Make sure grabInteractable is not null before adding listeners
+        if (grabInteractable != null)
+        {
+            grabInteractable.selectEntered.AddListener(OnGrabStart);
+            grabInteractable.selectExited.AddListener(OnGrabEnd);
+        }
+        else
+        {
+            Debug.LogError($"[{Time.frameCount}] ChamberBlockController OnEnable() on {gameObject.name}: grabInteractable is NULL!", this);
+        }
     }
 
     void OnDisable()
     {
-        grabInteractable.selectEntered.RemoveListener(OnGrabStart);
-        grabInteractable.selectExited.RemoveListener(OnGrabEnd);
-        // Ensure coroutine stops if object is disabled while returning
+        // Add this log
+        Debug.Log($"[{Time.frameCount}] ChamberBlockController OnDisable() called for {gameObject.name}.", this);
+
+        // Make sure grabInteractable is not null before removing listeners
+        if (grabInteractable != null)
+        {
+            grabInteractable.selectEntered.RemoveListener(OnGrabStart);
+            grabInteractable.selectExited.RemoveListener(OnGrabEnd);
+        }
         StopAllCoroutines();
+    }
+
+    
+    void OnDestroy()
+    {
+        // Add this log
+        Debug.Log($"[{Time.frameCount}] ChamberBlockController OnDestroy() called for {gameObject.name}.", this);
     }
 
     private void OnGrabStart(SelectEnterEventArgs args)
@@ -185,4 +210,32 @@ public class ChamberBlockController : MonoBehaviour
         float distance = Mathf.Lerp(minSlideDistance, maxSlideDistance, normalizedPosition);
         transform.localPosition = initialLocalPosition + slideAxis * distance;
     }
+
+    // Add this method INSIDE the ChamberBlockController class
+
+    /// <summary>
+    /// Checks if the chamber block is currently in the closed position.
+    /// </summary>
+    /// <returns>True if the block is at or very close to the minimum slide distance.</returns>
+    public bool IsClosed()
+    {
+        // Calculate the current distance along the slide axis relative to the start
+        Vector3 currentMovement = transform.localPosition - initialLocalPosition;
+        float currentDistance = Vector3.Dot(currentMovement, slideAxis);
+
+        // Check if the current distance is approximately equal to the minimum distance
+        // Use a small tolerance (epsilon) for floating-point comparison
+        // Since minSlideDistance is the target for 'closed' in your setup
+        return Mathf.Abs(currentDistance - minSlideDistance) < Mathf.Epsilon;
+
+        // Alternative check (might be slightly more robust if overshooting occurs):
+        // If slideAxis is (-1,0,0) and min is negative, closed means distance <= min
+        // If slideAxis is (1,0,0) and min is positive, closed means distance >= min
+        // Generalizing: Check if it's at the 'min' boundary or slightly past it
+        // bool isAtOrPastMin = (slideAxis.x < 0 || slideAxis.y < 0 || slideAxis.z < 0) ?
+        //                      currentDistance <= minSlideDistance + Mathf.Epsilon :
+        //                      currentDistance >= minSlideDistance - Mathf.Epsilon;
+        // return isAtOrPastMin; // Use this line instead of the Mathf.Abs line if needed
+    }
+
 }
